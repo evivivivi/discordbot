@@ -17,7 +17,7 @@ class Momonga(commands.Cog):
             return
         if message.content == 'モモンガ':
             file = discord.File("images/momonga.png")
-            await message.channel.send(self.generate_random_momonga())
+            await message.channel.send(self.generate_random_momonga(),file=file)
 
 # main.pyから呼び出すための準備
 async def setup(bot):
