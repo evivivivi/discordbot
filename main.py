@@ -20,9 +20,9 @@ bot = commands.Bot(command_prefix="/", intents=intents)
 # 起動時にcogsフォルダ内のファイルを読み込む
 async def load_extensions():
         for filename in os.listdir("./cogs"):
-        if filename.endswith(".py"):
+        	if filename.endswith(".py"):
             # ファイル名の末尾3文字(.py)を切り取って読み込む
-            await bot.load_extension(f"cogs.{filename[:-3]}")
+            		await bot.load_extension(f"cogs.{filename[:-3]}")
 
 @bot.event
 async def on_ready():
