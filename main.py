@@ -1,16 +1,8 @@
 import discord
+from discord.ext import commands
 import os
-import random
 from keep_alive import keep_alive
-import os
-
-# ...（Botの設定など）...
-
-usagi=["イ","ヤ","ハ","ウ","ラ","ツ","ル","プ"]
-
-def generate_random_string():
-    random_string = "".join(random.choice(usagi) for _ in range(random.randint(3,8)))
-    return random_string
+import asyncio
 
 
 
@@ -21,26 +13,23 @@ intents = discord.Intents.default()
 # 2. メッセージ内容を取得したい場合はここをTrueにする
 intents.message_content = True
 
-# 3. Clientを作成する際にintentsを渡す（ここがエラーの原因）
-client = discord.Client(intents=intents)
+# 3. 
+bot = commands.Bot(command_prefix="/", intents=intents)
 
 
-# 起動時に動作する処理
-@client.event
+# 起動時にcogsフォルダ内のファイルを読み込む
+async def load_extensions():
+    await bot.load_extension("cogs.usagi")
+
+@bot.event
 async def on_ready():
-    # 起動したらターミナルにログイン通知が表示される
-    print('ログインしました')
+    print(f'{bot.user} としてログインしました')
 
-# メッセージ受信時に動作する処理
-@client.event
-async def on_message(message):
-    # メッセージ送信者がBotだった場合は無視する
-    if message.author.bot:
-        return
-    # 「/neko」と発言したら「にゃーん」が返る処理
-    if message.content == '/usagi':
-        random_text = generate_random_string()
-        await message.channel.send(random_text)
+async def main():
+    keep_alive()
+    async with bot:
+        await load_extensions()
+        await bot.start(os.getenv("DISCORD_TOKEN"))
 
-keep_alive() # Webサーバーを起動
-client.run(os.getenv("DISCORD_TOKEN")) # 環境変数からトークンを読み込む
+# 実行
+asyncio.run(main())
