@@ -13,7 +13,7 @@ class Hachiware(commands.Cog):
 
         if message.content == 'ハチワレ':
             # 運勢を決定
-            fortunes = ["大吉", "中吉", "小吉", "吉", "凶", "大凶"]
+            fortunes = ["大吉", "中吉", "吉", "小吉", "凶", "大凶"]
             result = random.choice(fortunes)
             col = discord.Color.green()
             img_path = "images/hachiware.png"
@@ -21,15 +21,17 @@ class Hachiware(commands.Cog):
             
             # 分岐処理（インデントをすべて半角スペース4つに統一）
             if result == "大吉":
-                msg = f"✨ {message.author.mention} おめでとう！それって、最高だよねッ！"
+                msg = f"✨ {message.author.mention} おめでとう！それって最高じゃん！！"
             elif result == "中吉":
-                msg = f"🎵 {message.author.mention} けど、これって...いいコトあるって、コトだよねッ！"
+                msg = f"😄 {message.author.mention} 具なくてもさァ！！ おいしいよね チャリメラって！！"
+            elif result == "吉":
+                msg = f"🎵 {message.author.mention} でも これも... 「味」だよねっ"
             elif result == "小吉":
-                msg = f"🎵 {message.author.mention} 今日はチャリメラ、食べようッ！？"
+                msg = f"🤨 {message.author.mention} だいじょぶっ いつもなんとかなってるもん！！"
             elif result == "凶":
-                msg = f"☔ {message.author.mention} 今日はのんびり過ごそう。無理は禁物、だねッ！"
+                msg = f"☔ {message.author.mention} ほんとに...つらかったらいいと思うッやめても..."
             else:
-                msg = f"😥 {message.author.mention} わァーッ... 今日は余計なことはしない方がよさそうだねッ..."
+                msg = f"😥 {message.author.mention} だめそうだったらさー リタイアすればいいよね"
 
             # --- 埋め込み（Embed）の作成 ---
             embed = discord.Embed(
