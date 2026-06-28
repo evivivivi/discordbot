@@ -3,26 +3,25 @@ from discord.ext import commands
 import os
 from keep_alive import keep_alive
 import asyncio
+from dotenv import load_dotenv
 
-
+# --- 【修正ポイント】.envの場所を確実に指定して読み込む ---
+current_dir = os.path.dirname(os.path.abspath(__file__))
+dotenv_path = os.path.join(current_dir, 'donttouch.env')
+load_dotenv(dotenv_path)
+# --------------------------------------------------------
 
 # 接続に必要なオブジェクトを生成
-# 1. Intentsのインスタンスを作成（標準設定を読み込む）
 intents = discord.Intents.default()
-
-# 2. メッセージ内容を取得したい場合はここをTrueにする
 intents.message_content = True
 
-# 3. 
 bot = commands.Bot(command_prefix="/", intents=intents)
-
 
 # 起動時にcogsフォルダ内のファイルを読み込む
 async def load_extensions():
-        for filename in os.listdir("./cogs"):
-        	if filename.endswith(".py"):
-            # ファイル名の末尾3文字(.py)を切り取って読み込む
-            		await bot.load_extension(f"cogs.{filename[:-3]}")
+    for filename in os.listdir(os.path.join(current_dir, "cogs")):
+        if filename.endswith(".py"):
+            await bot.load_extension(f"cogs.{filename[:-3]}")
 
 @bot.event
 async def on_ready():
@@ -32,6 +31,7 @@ async def main():
     keep_alive()
     async with bot:
         await load_extensions()
+        # --- 【修正ポイント】ここを元の環境変数読み込みに戻す ---
         await bot.start(os.getenv("DISCORD_TOKEN"))
 
 # 実行
