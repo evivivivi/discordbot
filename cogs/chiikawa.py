@@ -1,9 +1,11 @@
 import discord
 from discord.ext import commands
+from discord import app_commands
 import random
+import os
 
 class Chiikawa(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
         
         # 1. まず「レアリティ自体の確率」を定義（合計100になるようにする）
@@ -14,7 +16,7 @@ class Chiikawa(commands.Cog):
             "UR": 1    # UR全体で2%
         }
         
-        # 2. レアリティごとのアイテムリスト（何個追加してもOK！）
+        # 2. レアリティごとのアイテムリスト
         self.gacha_pool = {
             "N": [
                 "🌱 普通の草", 
@@ -66,55 +68,60 @@ class Chiikawa(commands.Cog):
         # 結果を辞書にして返す
         return {"name": chosen_item_name, "rarity": chosen_rarity}
 
-    @commands.Cog.listener()
-    async def on_message(self, message):
-        if message.author.bot:
+    # 💡 --- 単発ガチャのスラッシュコマンド (/chiikawa) ---
+    @app_commands.command(name="chiikawa", description="草むしりガチャを1回引きます。")
+    async def chiikawa_single(self, interaction: discord.Interaction):
+        result = self.pull_gacha()
+        
+        col = discord.Color.green() if result["rarity"] in ["N", "R"] else discord.Color.gold()
+        img_path = "images/chiikawa.png"
+        img_name = "chiikawa.png"
+
+        # 画像の存在チェック
+        if not os.path.exists(img_path):
+            await interaction.response.send_message(f"エラー: 画像「{img_path}」が見つかりません。", ephemeral=True)
             return
 
-        # --- 単発ガチャ ---
-        if message.content == 'ちいかわ':
-            result = self.pull_gacha()
-            
-            col = discord.Color.green() if result["rarity"] in ["N", "R"] else discord.Color.gold()
-            img_path = "images/chiikawa.png"
-            img_name = "chiikawa.png" # ここを定義
+        file = discord.File(img_path, filename=img_name)
+        
+        # Embedの作成 (message.author.display_name を interaction.user.display_name に変更)
+        embed = discord.Embed(
+            title=f"🌱 {interaction.user.display_name} さんの草むしり結果",
+            description=f"むしったもの：**{result['name']}** (レア度: {result['rarity']})",
+            color=col
+        )
+        embed.set_image(url=f"attachment://{img_name}")
+       
+        # 結果を送信
+        await interaction.response.send_message(file=file, embed=embed)
 
-            
-            embed = discord.Embed(
-                title=f"🌱 {message.author.display_name} さんの草むしり結果",
-                description=f"むしったもの：**{result['name']}** (レア度: {result['rarity']})",
-                color=col
-            )
-            # 画像の設定
-            file = discord.File(img_path, filename=img_name)
-            embed.set_image(url=f"attachment://{img_name}")
-           
-            await message.channel.send(file=file,embed=embed)
+    # 💡 --- 10連ガチャのスラッシュコマンド (/chiikawa10) ---
+    @app_commands.command(name="chiikawa10", description="草むしりガチャを10連で引きます。")
+    async def chiikawa_multi(self, interaction: discord.Interaction):
+        results = [self.pull_gacha() for _ in range(10)]
+        
+        text_list = []
+        img_path = "images/chiikawa.png"
+        img_name = "chiikawa.png"
 
-        # --- 10連ガチャ ---
-        elif message.content == 'ちいかわ10':
-            results = [self.pull_gacha() for _ in range(10)]
-            
-            text_list = []
-            img_path = "images/chiikawa.png"
-            img_name = "chiikawa.png" # ここを定義
+        if not os.path.exists(img_path):
+            await interaction.response.send_message(f"エラー: 画像「{img_path}」が見つかりません。", ephemeral=True)
+            return
 
-            
-            for i, res in enumerate(results, 1):
-                text_list.append(f"{i}回目：{res['name']} [{res['rarity']}]")
+        file = discord.File(img_path, filename=img_name)
+        
+        for i, res in enumerate(results, 1):
+            text_list.append(f"{i}回目：{res['name']} [{res['rarity']}]")
 
-            embed = discord.Embed(
-                title=f"🚜 {message.author.display_name} さんの10連草むしり結果",
-                description="\n".join(text_list),
-                color=discord.Color.blue()
-            )
-            
-          # 画像の設定
-            file = discord.File(img_path, filename=img_name)
-            embed.set_image(url=f"attachment://{img_name}")
-           
-            await message.channel.send(file=file,embed=embed)
+        # Embedの作成
+        embed = discord.Embed(
+            title=f"🚜 {interaction.user.display_name} さんの10連草むしり結果",
+            description="\n".join(text_list),
+            color=discord.Color.blue()
+        )
+        embed.set_image(url=f"attachment://{img_name}")
+       
+        await interaction.response.send_message(file=file, embed=embed)
 
-
-async def setup(bot):
+async def setup(bot: commands.Bot):
     await bot.add_cog(Chiikawa(bot))
