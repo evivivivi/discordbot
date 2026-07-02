@@ -29,48 +29,48 @@ class OdaiCog(commands.Cog):
             print(f"【警告】{self.data_filepath} が見つかりません。データを配置してください。")
             self.songs_cache = []
 
-    def _match_level(self, actual_const: float, target_level_str: str) -> bool:
+     def _match_level(self, actual_const: float, target_level_str: str) -> bool:
 
-    def _match_level(self, actual_const: float, target_level_str: str) -> bool:
-
-
-        # 実際の「譜面定数（actual_const）」が、ユーザーの指定したレベル文字列と一致するか判定する
         target = target_level_str.strip()
 
-        # パターン1: 小数点が含まれる指定の場合（例: "14.2"）
+        # 🌟 実際の譜面定数を10倍して「四捨五入した整数」にする (例: 14.5 -> 145 / 14.2 -> 142)
+        # round(..., 1)ではなく、int(round(x * 10)) とすることで小数のゴミを完全に消滅させます
+        const_int = int(round(actual_const * 10))
+
+        # ----------------------------------------------------
+        # パターン1: 小数点指定 (例: "14.2")
+        # ----------------------------------------------------
         if '.' in target:
             try:
-                # 浮動小数点の誤差を防ぐため、一度文字列にしてから厳密に比較
-                return f"{actual_const:.1f}" == f"{float(target):.1f}"
+                # 入力されたターゲット（例: "14.2"）も10倍の整数（142）にする
+                target_int = int(round(float(target) * 10))
+                return const_int == target_int
             except ValueError:
                 return False
 
-        # パターン2: 小数点を無視した大枠の指定（「+」が付く場合、例: "14+"） -> 定数が .5 ~ .9 の範囲か
+        # ----------------------------------------------------
+        # パターン2: プラス指定 (例: "14+") -> 定数が 14.5 〜 14.9 (145 〜 149) の範囲か
+        # ----------------------------------------------------
         elif target.endswith('+'):
             try:
                 base_lv = int(target[:-1])
-                # 整数部分が一致しているか
-                if math.floor(actual_const) != base_lv:
-                    return False
-                
-                # 小数点第一位の数字を文字として直接抜き出す（誤差ゼロ）
-                # 例: 14.5 -> "5" -> int("5") -> 5
-                under_dot = int(str(f"{actual_const:.1f}").split('.')[1])
-                return under_dot >= 5 # 5〜9ならTrue
+                # 14+ なら、145 以上 かつ 150 未満 かどうかを整数で調べる（誤差ゼロ）
+                min_val = base_lv * 10 + 5  # 例: 14 * 10 + 5 = 145
+                max_val = (base_lv + 1) * 10 # 例: 15 * 10 = 150
+                return min_val <= const_int < max_val
             except ValueError:
                 return False
 
-        # パターン3: 小数点を無視した大枠の指定（無印の場合、例: "14"） -> 定数が .0 ~ .4 の範囲か
+        # ----------------------------------------------------
+        # パターン3: 整数指定 (例: "14") -> 定数が 14.0 〜 14.4 (140 〜 144) の範囲か
+        # ----------------------------------------------------
         else:
             try:
                 base_lv = int(target)
-                # 整数部分が一致しているか
-                if math.floor(actual_const) != base_lv:
-                    return False
-                
-                # 小数点第一位の数字を文字として直接抜き出す（誤差ゼロ）
-                under_dot = int(str(f"{actual_const:.1f}").split('.')[1])
-                return under_dot < 5 # 0〜4ならTrue
+                # 14 無印なら、140 以上 かつ 145 未満 かどうかを整数で調べる（誤差ゼロ）
+                min_val = base_lv * 10       # 例: 14 * 10 = 140
+                max_val = base_lv * 10 + 5   # 例: 14 * 10 + 5 = 145
+                return min_val <= const_int < max_val
             except ValueError:
                 return False
 
