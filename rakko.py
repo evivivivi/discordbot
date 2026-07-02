@@ -29,7 +29,7 @@ class OdaiCog(commands.Cog):
             print(f"【警告】{self.data_filepath} が見つかりません。データを配置してください。")
             self.songs_cache = []
 
-     def _match_level(self, actual_const: float, target_level_str: str) -> bool:
+    def _match_level(self, actual_const: float, target_level_str: str) -> bool:
 
         target = target_level_str.strip()
 
