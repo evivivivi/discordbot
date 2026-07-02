@@ -29,37 +29,38 @@ class OdaiCog(commands.Cog):
             print(f"【警告】{self.data_filepath} が見つかりません。データを配置してください。")
             self.songs_cache = []
 
-def _match_level(self, actual_const: float, target_level_str: str) -> bool:
-    if not isinstance(actual_const, (int, float)):
-        return False
-        
-    target = target_level_str.strip()
-    const_int = int(round(actual_const * 10))
-
+def _match_level(self, actual_const, target_level_str: str) -> bool:
+    """actual_constはint/floatのどちらもあり得る"""
     try:
-        # 小数点指定 (14.1, 14.2 など)
+        # 確実にfloatに変換
+        const = float(actual_const)
+        if const <= 0:
+            return False
+            
+        const_int = int(round(const * 10))
+        target = target_level_str.strip()
+
         if '.' in target:
+            # 14.1 など
             target_int = int(round(float(target) * 10))
             return const_int == target_int
 
-        # プラス指定 (14+)
         elif target.endswith('+'):
+            # 14+
             base_lv = int(target[:-1])
-            min_val = base_lv * 10 + 5
-            max_val = (base_lv + 1) * 10
-            return min_val <= const_int < max_val
+            return (base_lv * 10 + 5) <= const_int < (base_lv + 1) * 10
 
-        # 整数指定 (14)
         else:
+            # 14（14.0〜14.4）
             base_lv = int(target)
-            min_val = base_lv * 10
-            max_val = base_lv * 10 + 5
-            return min_val <= const_int < max_val
+            return (base_lv * 10) <= const_int < (base_lv * 10 + 5)
 
     except (ValueError, TypeError, OverflowError):
-        return False@app_commands.command(name="rakko", description="指定したレベルからランダムで3曲選出")
+        return False
+
+@app_commands.command(name="rakko", description="指定したレベルからランダムで3曲選出")
 @app_commands.describe(level="レベルを指定してください (例: 14, 14+, 14.2)")
-async def odai(self, interaction: discord.Interaction, level: str):
+async def odai(interaction: discord.Interaction, level: str):
     await interaction.response.defer()  # ← これを最初に呼ぶ！タイムアウト対策
     
     try:
@@ -77,17 +78,19 @@ async def odai(self, interaction: discord.Interaction, level: str):
                 actual_const = diff_info.get('const')
                 is_unknown = diff_info.get('is_const_unknown', 0)
                 
-                if (actual_const is not None and 
-                    isinstance(actual_const, (int, float)) and 
-                    float(actual_const) > 0 and 
-                    is_unknown != 1):
-                    
-                    if self._match_level(float(actual_const), level):
-                        filtered_items.append({
-                            'meta': meta,
-                            'diff_name': diff_name,
-                            'const': actual_const
-                        })
+                if actual_const is None:
+                    continue
+
+                if is_unknown == 1:
+                    continue
+
+
+                if self._match_level(actual_const, level):
+                    filtered_items.append({
+                        'meta': meta,
+                        'diff_name': diff_name,
+                        'const': actual_const
+                    })
 
         if len(filtered_items) < 3:
             await interaction.followup.send(
