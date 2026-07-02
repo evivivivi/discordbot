@@ -29,73 +29,59 @@ class OdaiCog(commands.Cog):
             print(f"【警告】{self.data_filepath} が見つかりません。データを配置してください。")
             self.songs_cache = []
 
-    def _match_level(self, actual_const: float, target_level_str: str) -> bool:
+def _match_level(self, actual_const: float, target_level_str: str) -> bool:
+    if not isinstance(actual_const, (int, float)):
+        return False
+        
+    target = target_level_str.strip()
+    const_int = int(round(actual_const * 10))
 
-        target = target_level_str.strip()
-
-        # 🌟 実際の譜面定数を10倍して「四捨五入した整数」にする (例: 14.5 -> 145 / 14.2 -> 142)
-        # round(..., 1)ではなく、int(round(x * 10)) とすることで小数のゴミを完全に消滅させます
-        const_int = int(round(actual_const * 10))
-
-        # ----------------------------------------------------
-        # パターン1: 小数点指定 (例: "14.2")
-        # ----------------------------------------------------
+    try:
+        # 小数点指定 (14.1, 14.2 など)
         if '.' in target:
-            try:
-                # 入力されたターゲット（例: "14.2"）も10倍の整数（142）にする
-                target_int = int(round(float(target) * 10))
-                return const_int == target_int
-            except ValueError:
-                return False
+            target_int = int(round(float(target) * 10))
+            return const_int == target_int
 
-        # ----------------------------------------------------
-        # パターン2: プラス指定 (例: "14+") -> 定数が 14.5 〜 14.9 (145 〜 149) の範囲か
-        # ----------------------------------------------------
+        # プラス指定 (14+)
         elif target.endswith('+'):
-            try:
-                base_lv = int(target[:-1])
-                # 14+ なら、145 以上 かつ 150 未満 かどうかを整数で調べる（誤差ゼロ）
-                min_val = base_lv * 10 + 5  # 例: 14 * 10 + 5 = 145
-                max_val = (base_lv + 1) * 10 # 例: 15 * 10 = 150
-                return min_val <= const_int < max_val
-            except ValueError:
-                return False
+            base_lv = int(target[:-1])
+            min_val = base_lv * 10 + 5
+            max_val = (base_lv + 1) * 10
+            return min_val <= const_int < max_val
 
-        # ----------------------------------------------------
-        # パターン3: 整数指定 (例: "14") -> 定数が 14.0 〜 14.4 (140 〜 144) の範囲か
-        # ----------------------------------------------------
+        # 整数指定 (14)
         else:
-            try:
-                base_lv = int(target)
-                # 14 無印なら、140 以上 かつ 145 未満 かどうかを整数で調べる（誤差ゼロ）
-                min_val = base_lv * 10       # 例: 14 * 10 = 140
-                max_val = base_lv * 10 + 5   # 例: 14 * 10 + 5 = 145
-                return min_val <= const_int < max_val
-            except ValueError:
-                return False
+            base_lv = int(target)
+            min_val = base_lv * 10
+            max_val = base_lv * 10 + 5
+            return min_val <= const_int < max_val
 
-    # スラッシュコマンド（/rakko）の定義
-    @app_commands.command(name="rakko", description="指定したレベル（譜面定数）からランダムで3曲選出します。小数点指定も可能です。")
-    @app_commands.describe(level="レベルを指定してください (例: 14, 14+, 14.2)")
-    async def odai(self, interaction: discord.Interaction, level: str):
+    except (ValueError, TypeError, OverflowError):
+        return False@app_commands.command(name="rakko", description="指定したレベルからランダムで3曲選出")
+@app_commands.describe(level="レベルを指定してください (例: 14, 14+, 14.2)")
+async def odai(self, interaction: discord.Interaction, level: str):
+    await interaction.response.defer()  # ← これを最初に呼ぶ！タイムアウト対策
+    
+    try:
         if not self.songs_cache:
-            await interaction.response.send_message("楽曲データが読み込まれていません。管理者に確認してください。", ephemeral=True)
+            await interaction.followup.send("楽曲データが読み込まれていません。", ephemeral=True)
             return
 
         filtered_items = []
-        
-        # メモリ内のデータから条件に合う楽曲を抽出
+
         for song in self.songs_cache:
             meta = song.get('meta', {})
             data = song.get('data', {})
             
             for diff_name, diff_info in data.items():
                 actual_const = diff_info.get('const')
-                is_unknown = diff_info.get('is_const_unknown', 0) # 未解析フラグ（無い場合は0）
+                is_unknown = diff_info.get('is_const_unknown', 0)
                 
-                # 💡【追加条件】定数が存在し、0より大きく、かつ未解析フラグが 1 ではない場合のみ許可
-                if actual_const is not None and float(actual_const) > 0 and is_unknown != 1:
-                    # その上でユーザーの指定したレベルと合致するか判定
+                if (actual_const is not None and 
+                    isinstance(actual_const, (int, float)) and 
+                    float(actual_const) > 0 and 
+                    is_unknown != 1):
+                    
                     if self._match_level(float(actual_const), level):
                         filtered_items.append({
                             'meta': meta,
@@ -104,26 +90,25 @@ class OdaiCog(commands.Cog):
                         })
 
         if len(filtered_items) < 3:
-            await interaction.response.send_message(f"レベル「{level}」の楽曲が3曲以上見つかりませんでした。（候補: {len(filtered_items)}曲）", ephemeral=True)
+            await interaction.followup.send(
+                f"レベル「{level}」の楽曲が3曲以上見つかりませんでした。（{len(filtered_items)}曲）", 
+                ephemeral=True
+            )
             return
 
-        # ランダム選出
         chosen_items = random.sample(filtered_items, 3)
 
-        # ラッコの画像設定
+        # 画像処理...
         img_path = "images/rakko.png"
-        img_name = "rakko.png"
-        
-        if os.path.exists(img_path):
-            discord_file = discord.File(img_path, filename=img_name)
-        else:
-            await interaction.response.send_message(f"エラー: 画像ファイル「{img_path}」が見つかりません。フォルダを確認してください。", ephemeral=True)
+        if not os.path.exists(img_path):
+            await interaction.followup.send("画像ファイルが見つかりません。", ephemeral=True)
             return
 
-        # Embedの作成
+        discord_file = discord.File(img_path, filename="rakko.png")
+
         embed = discord.Embed(title="🎵 お題はこれだッ 🎵", color=discord.Color.gold())
         embed.description = f"対象レベル: **Level {level}**\n強く、なれッ...！"
-        embed.set_image(url=f"attachment://{img_name}")
+        embed.set_image(url="attachment://rakko.png")
 
         for i, item in enumerate(chosen_items, 1):
             meta = item['meta']
@@ -133,8 +118,17 @@ class OdaiCog(commands.Cog):
                 inline=False
             )
 
-        # 結果を送信
-        await interaction.response.send_message(embed=embed, file=discord_file)
+        await interaction.followup.send(embed=embed, file=discord_file)
+
+    except Exception as e:
+        import traceback
+        error_msg = f"エラーが発生しました: {e}"
+        print(error_msg)
+        print(traceback.format_exc())
+        try:
+            await interaction.followup.send(f"内部エラーが発生しました。\n```{str(e)[:1800]}```", ephemeral=True)
+        except:
+            pass
 
     # 管理者用ファイル再読込スラッシュコマンド（/reload_songs_file）
     @app_commands.command(name="reload_songs_file", description="【管理者用】保存されているJSONファイルを読み込み直します。")
