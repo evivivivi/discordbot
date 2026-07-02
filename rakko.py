@@ -30,15 +30,18 @@ class OdaiCog(commands.Cog):
             self.songs_cache = []
 
     def _match_level(self, actual_const: float, target_level_str: str) -> bool:
-        """
-        実際の「譜面定数（actual_const）」が、ユーザーの指定したレベル文字列と一致するか判定する
-        """
+
+    def _match_level(self, actual_const: float, target_level_str: str) -> bool:
+
+
+        # 実際の「譜面定数（actual_const）」が、ユーザーの指定したレベル文字列と一致するか判定する
         target = target_level_str.strip()
 
-        # パターン1: 小数点が含まれる指定の場合（例: "14.2"） -> 譜面定数とピンポイントで一致するか
+        # パターン1: 小数点が含まれる指定の場合（例: "14.2"）
         if '.' in target:
             try:
-                return actual_const == float(target)
+                # 浮動小数点の誤差を防ぐため、一度文字列にしてから厳密に比較
+                return f"{actual_const:.1f}" == f"{float(target):.1f}"
             except ValueError:
                 return False
 
@@ -46,7 +49,14 @@ class OdaiCog(commands.Cog):
         elif target.endswith('+'):
             try:
                 base_lv = int(target[:-1])
-                return math.floor(actual_const) == base_lv and (actual_const % 1) >= 0.5
+                # 整数部分が一致しているか
+                if math.floor(actual_const) != base_lv:
+                    return False
+                
+                # 小数点第一位の数字を文字として直接抜き出す（誤差ゼロ）
+                # 例: 14.5 -> "5" -> int("5") -> 5
+                under_dot = int(str(f"{actual_const:.1f}").split('.')[1])
+                return under_dot >= 5 # 5〜9ならTrue
             except ValueError:
                 return False
 
@@ -54,7 +64,13 @@ class OdaiCog(commands.Cog):
         else:
             try:
                 base_lv = int(target)
-                return math.floor(actual_const) == base_lv and (actual_const % 1) < 0.5
+                # 整数部分が一致しているか
+                if math.floor(actual_const) != base_lv:
+                    return False
+                
+                # 小数点第一位の数字を文字として直接抜き出す（誤差ゼロ）
+                under_dot = int(str(f"{actual_const:.1f}").split('.')[1])
+                return under_dot < 5 # 0〜4ならTrue
             except ValueError:
                 return False
 
