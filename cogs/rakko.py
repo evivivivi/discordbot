@@ -29,97 +29,110 @@ class OdaiCog(commands.Cog):
             print(f"【警告】{self.data_filepath} が見つかりません。データを配置してください。")
             self.songs_cache = []
 
-    def _match_level(self, actual_const: float, target_level_str: str) -> bool:
-        """
-        実際の「譜面定数（actual_const）」が、ユーザーの指定したレベル文字列と一致するか判定する
-        """
-        target = target_level_str.strip()
-
-        # パターン1: 小数点が含まれる指定の場合（例: "14.2"） -> 譜面定数とピンポイントで一致するか
-        if '.' in target:
-            try:
-                return actual_const == float(target)
-            except ValueError:
+    # 🌟【最重要修正】クラスの内側（インデント下）に正しく配置し直しました！
+    def _match_level(self, actual_const, target_level_str: str) -> bool:
+        """actual_constはint/floatのどちらもあり得る"""
+        try:
+            # 確実にfloatに変換
+            const = float(actual_const)
+            if const <= 0:
                 return False
+                
+            const_int = int(round(const * 10))
+            target = target_level_str.strip()
 
-        # パターン2: 小数点を無視した大枠の指定（「+」が付く場合、例: "14+"） -> 定数が .5 ~ .9 の範囲か
-        elif target.endswith('+'):
-            try:
+            if '.' in target:
+                # 14.1 など
+                target_int = int(round(float(target) * 10))
+                return const_int == target_int
+
+            elif target.endswith('+'):
+                # 14+
                 base_lv = int(target[:-1])
-                return math.floor(actual_const) == base_lv and (actual_const % 1) >= 0.5
-            except ValueError:
-                return False
+                return (base_lv * 10 + 5) <= const_int < (base_lv + 1) * 10
 
-        # パターン3: 小数点を無視した大枠の指定（無印の場合、例: "14"） -> 定数が .0 ~ .4 の範囲か
-        else:
-            try:
+            else:
+                # 14（14.0〜14.4）
                 base_lv = int(target)
-                return math.floor(actual_level_str_or_const) == base_lv and (actual_const % 1) < 0.5 # 内部用に修正
-                return math.floor(actual_const) == base_lv and (actual_const % 1) < 0.5
-            except ValueError:
-                return False
+                return (base_lv * 10) <= const_int < (base_lv * 10 + 5)
+
+        except (ValueError, TypeError, OverflowError):
+            return False
 
     # スラッシュコマンド（/rakko）の定義
-    @app_commands.command(name="rakko", description="指定したレベル（譜面定数）からランダムで3曲選出します。小数点指定も可能です。")
+    @app_commands.command(name="rakko", description="指定したレベルからランダムで3曲選出")
     @app_commands.describe(level="レベルを指定してください (例: 14, 14+, 14.2)")
     async def odai(self, interaction: discord.Interaction, level: str):
-        if not self.songs_cache:
-            await interaction.response.send_message("楽曲データが読み込まれていません。管理者に確認してください。", ephemeral=True)
-            return
-
-        filtered_items = []
+        await interaction.response.defer()  # タイムアウト対策
         
-        # メモリ内のデータから条件に合う楽曲を抽出
-        for song in self.songs_cache:
-            meta = song.get('meta', {})
-            data = song.get('data', {})
-            
-            for diff_name, diff_info in data.items():
-                actual_const = diff_info.get('const')
-                is_unknown = diff_info.get('is_const_unknown', 0) # 未解析フラグ（無い場合は0）
+        try:
+            if not self.songs_cache:
+                await interaction.followup.send("楽曲データが読み込まれていません。", ephemeral=True)
+                return
+
+            filtered_items = []
+
+            for song in self.songs_cache:
+                meta = song.get('meta', {})
+                data = song.get('data', {})
                 
-                # 💡【追加条件】定数が存在し、0より大きく、かつ未解析フラグが 1 ではない場合のみ許可
-                if actual_const is not None and float(actual_const) > 0 and is_unknown != 1:
-                    # その上でユーザーの指定したレベルと合致するか判定
-                    if self._match_level(float(actual_const), level):
+                for diff_name, diff_info in data.items():
+                    actual_const = diff_info.get('const')
+                    is_unknown = diff_info.get('is_const_unknown', 0)
+                    
+                    if actual_const is None:
+                        continue
+
+                    if is_unknown == 1:
+                        continue
+
+                    # 🌟これで正しく機能として呼び出せるようになります
+                    if self._match_level(actual_const, level):
                         filtered_items.append({
                             'meta': meta,
                             'diff_name': diff_name,
                             'const': actual_const
                         })
 
-        if len(filtered_items) < 3:
-            await interaction.response.send_message(f"レベル「{level}」の楽曲が3曲以上見つかりませんでした。（候補: {len(filtered_items)}曲）", ephemeral=True)
-            return
+            if len(filtered_items) < 3:
+                await interaction.followup.send(
+                    f"レベル「{level}」の楽曲が3曲以上見つかりませんでした。（{len(filtered_items)}曲）", 
+                    ephemeral=True
+                )
+                return
 
-        # ランダム選出
-        chosen_items = random.sample(filtered_items, 3)
+            chosen_items = random.sample(filtered_items, 3)
 
-        # ラッコの画像設定
-        img_path = "images/rakko.png"
-        img_name = "rakko.png"
-        
-        if os.path.exists(img_path):
-            discord_file = discord.File(img_path, filename=img_name)
-        else:
-            await interaction.response.send_message(f"エラー: 画像ファイル「{img_path}」が見つかりません。フォルダを確認してください。", ephemeral=True)
-            return
+            img_path = "images/rakko.png"
+            if not os.path.exists(img_path):
+                await interaction.followup.send("画像ファイルが見つかりません。", ephemeral=True)
+                return
 
-        # Embedの作成
-        embed = discord.Embed(title="🎵 お題はこれだッ 🎵", color=discord.Color.gold())
-        embed.description = f"対象レベル: **Level {level}**\n強く、なれッ...！"
-        embed.set_image(url=f"attachment://{img_name}")
+            discord_file = discord.File(img_path, filename="rakko.png")
 
-        for i, item in enumerate(chosen_items, 1):
-            meta = item['meta']
-            embed.add_field(
-                name=f"{i}曲目: {meta.get('title', 'Unknown')}",
-                value=f"アーティスト: {meta.get('artist', 'Unknown')}\n難易度: {item['diff_name']}",
-                inline=False
-            )
+            embed = discord.Embed(title="🎵 お題はこれだッ 🎵", color=discord.Color.gold())
+            embed.description = f"対象レベル: **Level {level}**\n強く、なれッ...！"
+            embed.set_image(url="attachment://rakko.png")
 
-        # 結果を送信
-        await interaction.response.send_message(embed=embed, file=discord_file)
+            for i, item in enumerate(chosen_items, 1):
+                meta = item['meta']
+                embed.add_field(
+                    name=f"{i}曲目: {meta.get('title', 'Unknown')}",
+                    value=f"アーティスト: {meta.get('artist', 'Unknown')}\n難易度: {item['diff_name']}",
+                    inline=False
+                )
+
+            await interaction.followup.send(embed=embed, file=discord_file)
+
+        except Exception as e:
+            import traceback
+            error_msg = f"エラーが発生しました: {e}"
+            print(error_msg)
+            print(traceback.format_exc())
+            try:
+                await interaction.followup.send(f"内部エラーが発生しました。\n```{str(e)[:1800]}```", ephemeral=True)
+            except:
+                pass
 
     # 管理者用ファイル再読込スラッシュコマンド（/reload_songs_file）
     @app_commands.command(name="reload_songs_file", description="【管理者用】保存されているJSONファイルを読み込み直します。")
@@ -130,6 +143,25 @@ class OdaiCog(commands.Cog):
             await interaction.followup.send(f"ローカルファイルからデータを再読み込みしました。（計 {len(self.songs_cache)} 曲）", ephemeral=True)
         else:
             await interaction.followup.send("データの再読み込みに失敗しました。ファイルが存在するか確認してください。", ephemeral=True)
+
+
+    # 🌟【追加】スラッシュコマンド専用のエラーキャッチ機能
+    @odai.error
+    async def odai_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        import traceback
+        
+        # 1. パソコンの画面（コンソールログ）に詳細なエラーを吐き出す
+        print("❌【スラッシュコマンド内部でエラーが発生しました】")
+        traceback.print_exception(type(error), error, error.__traceback__)
+        
+        # 2. Discordのチャット欄（打った本人だけに見える形）にもエラーを送りつける
+        # すでに一度 defer() で引き延ばしているので followup.send を使います
+        error_text = f"⚠️ コマンドの実行中にエラーが発生しました:\n```python\n{error}\n```"
+        try:
+            await interaction.followup.send(error_text, ephemeral=True)
+        except:
+            pass
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(OdaiCog(bot))
