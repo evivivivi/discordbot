@@ -4,18 +4,26 @@ import random
 import os
 import datetime
 
-# 💡 設定項目
+# 設定項目
 CHANNEL_ID = 1501416156672823356  # 結果を投稿したいテキストチャンネルのID
 ROLE_ID = 1529115591695142992     # 占い対象にしたい「ロール（役職）」のID
-EXECUTE_TIME = datetime.time(hour=23, minute=45, second=0, tzinfo=datetime.timezone(datetime.timedelta(hours=9))) # 毎日朝7:00（日本時間）
+
+# 時間の設定（日本時間 00:25 ➔ UTC 15:25）
+EXECUTE_TIME = datetime.time(
+    hour=23, 
+    minute=0, 
+    second=0, 
+    tzinfo=datetime.timezone.utc
+)
+
 
 class DailyFortune(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.daily_fortune.start() # Bot起動時に自動実行タスクを開始
+        self.daily_fortune.start()  # Bot起動時に自動実行タスクを開始
 
     def cog_unload(self):
-        self.daily_fortune.cancel() # Cogがアンロードされたらタスクを停止
+        self.daily_fortune.cancel()  # Cogがアンロードされたらタスクを停止
 
     # 運勢のメッセージを生成するロジック
     def generate_fortune_message(self, user: discord.Member):
@@ -37,41 +45,54 @@ class DailyFortune(commands.Cog):
             
         return result, msg
 
-    # 💡 毎日決まった時間に自動実行されるタスク
     @tasks.loop(time=EXECUTE_TIME)
     async def daily_fortune(self):
-        # Botの接続準備が完了するまで待機
+        print("[INFO] Timer triggered")
         await self.bot.wait_until_ready()
         
         # 投稿先チャンネルを取得
         channel = self.bot.get_channel(CHANNEL_ID)
         if not channel:
-            print(f"自動実行エラー: チャンネル({CHANNEL_ID})が見つかりません。")
+            print(f"[ERROR] Channel ID ({CHANNEL_ID}) not found")
             return
+        print(f"[SUCCESS] Channel found: #{channel.name}")
 
         img_path = "images/hachiware.png"
         if not os.path.exists(img_path):
-            print(f"自動実行エラー: 画像「{img_path}」が見つかりません。")
+            print(f"[ERROR] Image path ({img_path}) does not exist")
             return
 
-        # サーバー（ギルド）オブジェクトを取得
+        # サーバーとロールを取得
         guild = channel.guild
-        # ロールオブジェクトを取得
+        
+        # 最新のメンバー名簿をダウンロードして同期
+        try:
+            print("[INFO] Fetching latest guild members...")
+            async for member in guild.fetch_members(limit=None):
+                pass  # キャッシュ更新のために全メンバーをループに通す
+            print("[SUCCESS] Guild members sync completed")
+        except Exception as e:
+            print(f"[ERROR] Failed to fetch members: {e}")
+            return
+
         role = guild.get_role(ROLE_ID)
         if not role:
-            print(f"自動実行エラー: ロール({ROLE_ID})が見つかりません。")
+            print(f"[ERROR] Role ID ({ROLE_ID}) not found")
             return
+        print(f"[SUCCESS] Role found: @{role.name}")
 
         # ロールを持っているメンバーを全員取得（Botは除外）
         members = [m for m in role.members if not m.bot]
+        print(f"[INFO] Target members count: {len(members)}")
+        
         if not members:
-            print("自動実行情報: ロールを持っているメンバーがいません。")
+            print("[WARN] No members found with the specified role. Skipping execution")
             return
 
         # 1つのEmbedに全員分をまとめる
         embed = discord.Embed(
-            title="🐾 ハチワレの全員まとめて今日の運勢占い！",
-            description="今日の運勢をまとめて占ったよッ！",
+            title="ハチワレの運勢占い",
+            description="今日の運勢を占ったよッ！",
             color=discord.Color.green()
         )
 
@@ -79,17 +100,19 @@ class DailyFortune(commands.Cog):
         for member in members:
             result, msg = self.generate_fortune_message(member)
             embed.add_field(
-                name=f"👤 {member.display_name} さん ➔ 【{result}】",
+                name=f"{member.display_name} さん ➔ 【{result}】",
                 value=msg,
                 inline=False
             )
+            print(f"[INFO] Fortune assigned for {member.display_name}")
 
-        # ハチワレの画像をセット
+        # ハチワレの画像をセットして送信
         embed.set_image(url="attachment://hachiware.png")
         file = discord.File(img_path, filename="hachiware.png")
         
-        # チャンネルに送信
         await channel.send(file=file, embed=embed)
+        print("[SUCCESS] Fortune message sent successfully")
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(DailyFortune(bot))

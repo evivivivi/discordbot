@@ -4,9 +4,7 @@ import os
 from keep_alive import keep_alive
 import asyncio
 from dotenv import load_dotenv
-intents = discord.Intents.default()
-intents.message_content = True 
-intents.members = True # 💡 これを必ず追加してください！
+
 
 # 1. 環境変数の読み込み (.envファイルの場所を指定)
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -15,7 +13,8 @@ load_dotenv(dotenv_path)
 
 # 2. 接続に必要なオブジェクト（インテント）の設定
 intents = discord.Intents.default()
-intents.message_content = True
+intents.message_content = True 
+intents.members = True
 
 # 3. スラッシュコマンド自動同期に対応したBotクラスの定義
 class MyBot(commands.Bot):
