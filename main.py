@@ -4,6 +4,7 @@ import os
 from keep_alive import keep_alive
 import asyncio
 from dotenv import load_dotenv
+intents.members = True
 
 # 1. 環境変数の読み込み (.envファイルの場所を指定)
 current_dir = os.path.dirname(os.path.abspath(__file__))
