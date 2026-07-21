@@ -7,7 +7,7 @@ import datetime
 # 💡 設定項目
 CHANNEL_ID = 1501416156672823356  # 結果を投稿したいテキストチャンネルのID
 ROLE_ID = 1529115591695142992     # 占い対象にしたい「ロール（役職）」のID
-EXECUTE_TIME = datetime.time(hour=23, minute=0, second=0, tzinfo=datetime.timezone(datetime.timedelta(hours=9))) # 毎日朝7:00（日本時間）
+EXECUTE_TIME = datetime.time(hour=23, minute=45, second=0, tzinfo=datetime.timezone(datetime.timedelta(hours=9))) # 毎日朝7:00（日本時間）
 
 class DailyFortune(commands.Cog):
     def __init__(self, bot: commands.Bot):
